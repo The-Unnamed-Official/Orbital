@@ -40,11 +40,15 @@
             <label for="sfx-volume">SFX</label>
             <input type="range" id="sfx-volume" min="0" max="1" step="0.01" value="0.7" />
           </div>
+          <div class="theme-toggle">
+            <span>Theme</span>
+            <button id="theme-toggle" class="toggle-button" aria-pressed="false">Day Mode</button>
+          </div>
 
           <h3>Skins</h3>
           <div class="skins">
             <button id="skin-prev" aria-label="Previous skin">
-              <i class="fa-solid fa-chevron-left"></i>
+              <i class="fa-solid fa-arrow-left"></i>
             </button>
             <div class="skins__strip">
               <div class="skin-preview skin-preview--small" id="skin-prev-preview">
@@ -61,7 +65,7 @@
               </div>
             </div>
             <button id="skin-next" aria-label="Next skin">
-              <i class="fa-solid fa-chevron-right"></i>
+              <i class="fa-solid fa-arrow-right"></i>
             </button>
           </div>
           <p class="skin-name" id="skin-name">Classic Boll</p>

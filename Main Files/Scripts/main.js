@@ -18,6 +18,8 @@ const skinName = document.getElementById("skin-name");
 const skinDesc = document.getElementById("skin-desc");
 const skinPrev = document.getElementById("skin-prev");
 const skinNext = document.getElementById("skin-next");
+const skinsStrip = document.querySelector(".skins__strip");
+const themeToggle = document.getElementById("theme-toggle");
 
 const WORLD_HEIGHT = 900;
 const LEVEL_COUNT = 10;
@@ -34,14 +36,44 @@ const CALM_SPEED = 260;
 
 const ASSET_ROOT = "../Media Files";
 
-const ballTextures = {
-  normal: new Image(),
-  shook: new Image(),
-  dizzy: new Image(),
-};
-ballTextures.normal.src = `${ASSET_ROOT}/Textures/Boll/Boll.png`;
-ballTextures.shook.src = `${ASSET_ROOT}/Textures/Boll/Boll_Shook.png`;
-ballTextures.dizzy.src = `${ASSET_ROOT}/Textures/Boll/Boll_Dizzy.png`;
+function loadTexture(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const skinOptions = [
+  {
+    name: "Classic Boll",
+    description: "Reach level 1 to unlock.",
+    unlockLevel: 1,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Boll_Dizzy.png`),
+    },
+  },
+  {
+    name: "Azure Boll",
+    description: "Reach level 4 to unlock.",
+    unlockLevel: 4,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Blue_Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Blue_Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Blue_Boll_Dizzy.png`),
+    },
+  },
+  {
+    name: "Rose Boll",
+    description: "Reach level 7 to unlock.",
+    unlockLevel: 7,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Pink_Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Pink_Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Pink_Boll_Dizzy.png`),
+    },
+  },
+];
 
 const backgroundSources = [
   `${ASSET_ROOT}/Textures/Background/Grassy_Planes_Day.png`,
@@ -60,7 +92,6 @@ const musicSources = [
 const musicPlaylist = musicSources.map((src) => new Audio(src));
 let currentTrackIndex = 0;
 let audioReady = false;
-let audioContext = null;
 
 musicPlaylist.forEach((track) => {
   track.loop = false;
@@ -71,18 +102,24 @@ musicPlaylist.forEach((track) => {
   });
 });
 
-const sfx = {
-  jump: { frequency: 440, duration: 0.12 },
-  portal: { frequency: 620, duration: 0.18 },
-  fail: { frequency: 220, duration: 0.2 },
+const sfxClips = {
+  jump: new Audio(`${ASSET_ROOT}/Sounds/Sound Effects/Jump.mp3`),
+  portal: new Audio(`${ASSET_ROOT}/Sounds/Sound Effects/Finish.mp3`),
+  fail: new Audio(`${ASSET_ROOT}/Sounds/Sound Effects/Death.mp3`),
 };
+
+const rollLoop = new Audio(`${ASSET_ROOT}/Sounds/Sound Effects/Roll.mp3`);
+rollLoop.loop = true;
+rollLoop.volume = 0;
 
 const state = {
   levelIndex: 0,
   levels: [],
   background: backgrounds[0],
+  backgroundTheme: "day",
   paused: false,
   gameWon: false,
+  started: false,
   keys: new Set(),
   lastTime: 0,
   player: {
@@ -102,23 +139,10 @@ const state = {
     x: 0,
     y: 0,
   },
-  skins: [
-    {
-      name: "Classic Boll",
-      description: "Reach level 1 to unlock.",
-      unlockLevel: 1,
-    },
-    {
-      name: "Stone Boll",
-      description: "Reach level 4 to unlock.",
-      unlockLevel: 4,
-    },
-    {
-      name: "Galaxy Boll",
-      description: "Reach level 7 to unlock.",
-      unlockLevel: 7,
-    },
-  ],
+  skins: skinOptions.map((skin, index) => ({
+    ...skin,
+    revealed: index === 0,
+  })),
   selectedSkin: 0,
   unlockedLevels: 1,
 };
@@ -142,29 +166,32 @@ function initAudio() {
   if (audioReady) return;
   audioReady = true;
   playCurrentTrack();
-}
-
-function ensureAudioContext() {
-  if (!audioContext) {
-    audioContext = new AudioContext();
-  }
-  if (audioContext.state === "suspended") {
-    audioContext.resume();
-  }
+  rollLoop.play().catch(() => {});
 }
 
 function playSfx(type) {
-  if (!audioContext) return;
-  const settings = sfx[type];
-  if (!settings) return;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.frequency.value = settings.frequency;
-  gain.gain.value = Number(sfxSlider.value) * 0.18;
-  oscillator.connect(gain);
-  gain.connect(audioContext.destination);
-  oscillator.start();
-  oscillator.stop(audioContext.currentTime + settings.duration);
+  if (!audioReady) return;
+  const clip = sfxClips[type];
+  if (!clip) return;
+  const instance = clip.cloneNode();
+  instance.volume = Number(sfxSlider.value);
+  instance.play().catch(() => {});
+}
+
+function updateRollAudio() {
+  if (!audioReady) return;
+  const speed = Math.abs(state.player.vx);
+  const speedRatio = clamp((speed - 40) / (MAX_SPEED * 0.9), 0, 1);
+  const volume = speedRatio * Number(sfxSlider.value);
+  rollLoop.volume = volume;
+  rollLoop.playbackRate = 0.8 + speedRatio * 1.2;
+  if (volume > 0.01) {
+    if (rollLoop.paused) {
+      rollLoop.play().catch(() => {});
+    }
+  } else if (!rollLoop.paused) {
+    rollLoop.pause();
+  }
 }
 
 function clamp(value, min, max) {
@@ -215,11 +242,16 @@ function generateLevel(index) {
     platforms.push(platform);
 
     if (Math.random() < 0.4 + index * 0.03) {
+      const hazardX = x + width * 0.4;
+      const hazardY = y - 16;
       hazards.push({
-        x: x + width * 0.4,
-        y: y - 18,
-        width: 50,
-        height: 18,
+        x: hazardX,
+        y: hazardY,
+        width: 46,
+        height: 16,
+        platform,
+        offsetX: hazardX - platform.x,
+        offsetY: hazardY - platform.y,
       });
     }
 
@@ -233,14 +265,11 @@ function generateLevel(index) {
     height: 140,
   };
 
-  const background = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-
   return {
     length: levelLength,
     platforms,
     hazards,
     portal,
-    background,
     index,
   };
 }
@@ -252,7 +281,7 @@ function initLevels() {
 
 function setLevel(index) {
   state.levelIndex = index;
-  state.background = state.levels[index].background;
+  state.background = state.backgroundTheme === "night" ? backgrounds[1] : backgrounds[0];
   state.player.x = 140;
   state.player.y = 440;
   state.player.vx = 0;
@@ -325,6 +354,56 @@ function updatePlatforms(level, time) {
       platform.deltaY = platform.y - prevY;
     }
   });
+
+  level.hazards.forEach((hazard) => {
+    if (hazard.platform) {
+      hazard.x = hazard.platform.x + hazard.offsetX;
+      hazard.y = hazard.platform.y + hazard.offsetY;
+    }
+  });
+}
+
+function distanceToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(px - ax, py - ay);
+  }
+  const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1);
+  const closestX = ax + t * dx;
+  const closestY = ay + t * dy;
+  return Math.hypot(px - closestX, py - closestY);
+}
+
+function circleIntersectsTriangle(cx, cy, radius, ax, ay, bx, by, cx2, cy2) {
+  const area = (x1, y1, x2, y2, x3, y3) =>
+    (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2));
+  const a = area(ax, ay, bx, by, cx2, cy2);
+  const a1 = area(cx, cy, bx, by, cx2, cy2);
+  const a2 = area(ax, ay, cx, cy, cx2, cy2);
+  const a3 = area(ax, ay, bx, by, cx, cy);
+  const hasSameSign = (value) => Math.sign(value) === Math.sign(a) || value === 0;
+  const inside = hasSameSign(a1) && hasSameSign(a2) && hasSameSign(a3);
+  if (inside) return true;
+  const d1 = distanceToSegment(cx, cy, ax, ay, bx, by);
+  const d2 = distanceToSegment(cx, cy, bx, by, cx2, cy2);
+  const d3 = distanceToSegment(cx, cy, cx2, cy2, ax, ay);
+  return Math.min(d1, d2, d3) <= radius;
+}
+
+function resolveWorldBounds(level) {
+  if (state.player.x - BALL_RADIUS < 0) {
+    state.player.x = BALL_RADIUS;
+    state.player.vx = 0;
+  }
+  if (state.player.x + BALL_RADIUS > level.length) {
+    state.player.x = level.length - BALL_RADIUS;
+    state.player.vx = 0;
+  }
+  if (state.player.y - BALL_RADIUS < 0) {
+    state.player.y = BALL_RADIUS;
+    state.player.vy = 0;
+  }
 }
 
 function resolveCollisions(level, prevX, prevY) {
@@ -366,11 +445,13 @@ function resolveCollisions(level, prevX, prevY) {
 
 function checkHazards(level) {
   for (const hazard of level.hazards) {
-    const inX = state.player.x + BALL_RADIUS > hazard.x &&
-      state.player.x - BALL_RADIUS < hazard.x + hazard.width;
-    const inY = state.player.y + BALL_RADIUS > hazard.y &&
-      state.player.y - BALL_RADIUS < hazard.y + hazard.height;
-    if (inX && inY) {
+    const ax = hazard.x;
+    const ay = hazard.y + hazard.height;
+    const bx = hazard.x + hazard.width / 2;
+    const by = hazard.y;
+    const cx = hazard.x + hazard.width;
+    const cy = hazard.y + hazard.height;
+    if (circleIntersectsTriangle(state.player.x, state.player.y, BALL_RADIUS, ax, ay, bx, by, cx, cy)) {
       playSfx("fail");
       setLevel(state.levelIndex);
       return;
@@ -390,7 +471,7 @@ function checkPortal(level) {
       setLevel(state.levelIndex + 1);
     } else {
       state.gameWon = true;
-      showOverlay("You Win!", "Boll zipped through all 10 procedurally generated levels.");
+      showMenu("win");
     }
   }
 }
@@ -441,6 +522,7 @@ function update(dt, time) {
   state.player.y += state.player.vy * dt;
 
   resolveCollisions(level, prevX, prevY);
+  resolveWorldBounds(level);
   checkHazards(level);
   checkPortal(level);
 
@@ -453,6 +535,7 @@ function update(dt, time) {
   state.player.angle += rotationSpeed * dt;
 
   updateTextureState(dt);
+  updateRollAudio();
 
   state.camera.x = clamp(state.player.x - canvas.width * 0.35, 0, level.length - canvas.width);
   state.camera.y = clamp(state.player.y - canvas.height * 0.55, 0, WORLD_HEIGHT - canvas.height);
@@ -505,7 +588,8 @@ function drawLevel(level) {
 }
 
 function drawPlayer() {
-  const texture = ballTextures[state.player.textureState] || ballTextures.normal;
+  const skin = state.skins[state.selectedSkin];
+  const texture = skin.textures[state.player.textureState] || skin.textures.normal;
 
   ctx.save();
   ctx.translate(state.player.x - state.camera.x, state.player.y - state.camera.y);
@@ -533,11 +617,29 @@ function showOverlay(title, message) {
   overlayMessage.textContent = message;
   overlay.classList.add("active");
   state.paused = true;
+  if (!rollLoop.paused) {
+    rollLoop.pause();
+  }
+}
+
+function showMenu(mode) {
+  if (mode === "main") {
+    showOverlay("Main Menu", "Press Start to roll into level 1.");
+    resumeButton.textContent = "Start";
+  } else if (mode === "win") {
+    showOverlay("You Win!", "Boll zipped through all 10 procedurally generated levels.");
+    resumeButton.textContent = "Play Again";
+  } else {
+    showOverlay("Paused", "Press Esc or Resume to continue.");
+    resumeButton.textContent = "Resume";
+  }
 }
 
 function hideOverlay() {
   overlay.classList.remove("active");
   state.paused = false;
+  state.started = true;
+  updateRollAudio();
 }
 
 function togglePause() {
@@ -545,7 +647,7 @@ function togglePause() {
   if (state.paused) {
     hideOverlay();
   } else {
-    showOverlay("Paused", "Press Esc to resume.");
+    showMenu(state.started ? "pause" : "main");
   }
 }
 
@@ -567,20 +669,46 @@ function updateSkinUI() {
 function setPreviewState(element, badge, index, focused) {
   const skin = state.skins[index];
   const isUnlocked = state.unlockedLevels >= skin.unlockLevel;
-  element.classList.remove("locked", "unlocked", "focused");
-  element.classList.add(isUnlocked ? "unlocked" : "locked");
+  const isRevealed = skin.revealed;
+  element.classList.remove("locked", "unlocked", "revealed", "focused");
+  if (!isUnlocked) {
+    element.classList.add("locked");
+    badge.innerHTML = '<i class="fa-solid fa-lock"></i>';
+  } else if (!isRevealed && !focused) {
+    element.classList.add("unlocked");
+    badge.innerHTML = '<i class="fa-solid fa-unlock"></i>';
+  } else {
+    element.classList.add("revealed");
+    badge.innerHTML = "";
+  }
   if (focused) {
+    if (!isUnlocked) {
+      element.classList.add("locked");
+      badge.innerHTML = '<i class="fa-solid fa-lock"></i>';
+    } else {
+      element.classList.add("revealed");
+      badge.innerHTML = "";
+    }
     element.classList.add("focused");
   }
-  badge.innerHTML = isUnlocked
-    ? '<i class="fa-solid fa-unlock"></i>'
-    : '<i class="fa-solid fa-lock"></i>';
 }
 
 function cycleSkin(direction) {
   const total = state.skins.length;
   state.selectedSkin = (state.selectedSkin + direction + total) % total;
+  const skin = state.skins[state.selectedSkin];
+  if (state.unlockedLevels >= skin.unlockLevel) {
+    skin.revealed = true;
+  }
   updateSkinUI();
+  animateSkinSwipe(direction);
+}
+
+function animateSkinSwipe(direction) {
+  if (!skinsStrip) return;
+  skinsStrip.classList.remove("swipe-left", "swipe-right");
+  void skinsStrip.offsetWidth;
+  skinsStrip.classList.add(direction > 0 ? "swipe-right" : "swipe-left");
 }
 
 function loop(timestamp) {
@@ -609,7 +737,6 @@ window.addEventListener("keydown", (event) => {
   }
   state.keys.add(key);
   initAudio();
-  ensureAudioContext();
 });
 
 window.addEventListener("keyup", (event) => {
@@ -620,7 +747,10 @@ window.addEventListener("keyup", (event) => {
 resumeButton.addEventListener("click", () => {
   hideOverlay();
   initAudio();
-  ensureAudioContext();
+  if (state.gameWon) {
+    state.gameWon = false;
+    setLevel(0);
+  }
 });
 
 restartButton.addEventListener("click", () => {
@@ -636,15 +766,23 @@ musicSlider.addEventListener("input", () => {
 });
 
 sfxSlider.addEventListener("input", () => {
-  if (audioContext) {
-    audioContext.resume();
-  }
+  updateRollAudio();
 });
 
 skinPrev.addEventListener("click", () => cycleSkin(-1));
 skinNext.addEventListener("click", () => cycleSkin(1));
+themeToggle.addEventListener("click", () => {
+  state.backgroundTheme = state.backgroundTheme === "night" ? "day" : "night";
+  state.background = state.backgroundTheme === "night" ? backgrounds[1] : backgrounds[0];
+  themeToggle.setAttribute("aria-pressed", state.backgroundTheme === "night");
+  themeToggle.textContent = state.backgroundTheme === "night" ? "Night Mode" : "Day Mode";
+});
+skinsStrip.addEventListener("animationend", () => {
+  skinsStrip.classList.remove("swipe-left", "swipe-right");
+});
 
 initLevels();
 updateSkinUI();
-showOverlay("Paused", "Press Esc or Resume to begin rolling.");
+themeToggle.textContent = state.backgroundTheme === "night" ? "Night Mode" : "Day Mode";
+showMenu("main");
 requestAnimationFrame(loop);
