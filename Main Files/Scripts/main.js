@@ -16,6 +16,7 @@ const skinPrevPreview = document.getElementById("skin-prev-preview");
 const skinNextPreview = document.getElementById("skin-next-preview");
 const skinName = document.getElementById("skin-name");
 const skinDesc = document.getElementById("skin-desc");
+const skinStatus = document.getElementById("skin-status");
 const skinPrev = document.getElementById("skin-prev");
 const skinNext = document.getElementById("skin-next");
 const skinsStrip = document.querySelector(".skins__strip");
@@ -144,6 +145,7 @@ const state = {
     revealed: index === 0,
   })),
   selectedSkin: 0,
+  equippedSkin: 0,
   unlockedLevels: 1,
 };
 
@@ -180,6 +182,13 @@ function playSfx(type) {
 
 function updateRollAudio() {
   if (!audioReady) return;
+  if (!state.player.onGround) {
+    rollLoop.volume = 0;
+    if (!rollLoop.paused) {
+      rollLoop.pause();
+    }
+    return;
+  }
   const speed = Math.abs(state.player.vx);
   const speedRatio = clamp((speed - 40) / (MAX_SPEED * 0.9), 0, 1);
   const volume = speedRatio * Number(sfxSlider.value);
@@ -241,8 +250,23 @@ function generateLevel(index) {
 
     platforms.push(platform);
 
-    if (Math.random() < 0.4 + index * 0.03) {
+    const hazardChance = 0.55 + index * 0.04;
+    if (Math.random() < hazardChance) {
       const hazardX = x + width * 0.4;
+      const hazardY = y - 16;
+      hazards.push({
+        x: hazardX,
+        y: hazardY,
+        width: 46,
+        height: 16,
+        platform,
+        offsetX: hazardX - platform.x,
+        offsetY: hazardY - platform.y,
+      });
+    }
+
+    if (index > 2 && Math.random() < 0.3) {
+      const hazardX = x + width * 0.7;
       const hazardY = y - 16;
       hazards.push({
         x: hazardX,
@@ -326,6 +350,11 @@ function handleInput(dt) {
 
   if (state.player.coyoteTime > 0) {
     state.player.coyoteTime -= dt;
+  }
+
+  const jumpHeld = state.keys.has(" ") || state.keys.has("arrowup") || state.keys.has("w");
+  if (jumpHeld) {
+    jump();
   }
 }
 
@@ -588,7 +617,7 @@ function drawLevel(level) {
 }
 
 function drawPlayer() {
-  const skin = state.skins[state.selectedSkin];
+  const skin = state.skins[state.equippedSkin];
   const texture = skin.textures[state.player.textureState] || skin.textures.normal;
 
   ctx.save();
@@ -660,6 +689,14 @@ function updateSkinUI() {
   const skin = state.skins[current];
   skinName.textContent = skin.name;
   skinDesc.textContent = skin.description;
+  const isUnlocked = state.unlockedLevels >= skin.unlockLevel;
+  if (!isUnlocked) {
+    skinStatus.textContent = `Status: Locked (Reach level ${skin.unlockLevel} to equip)`;
+  } else if (state.equippedSkin === current) {
+    skinStatus.textContent = "Status: Equipped";
+  } else {
+    skinStatus.textContent = "Status: Unlocked";
+  }
 
   setPreviewState(skinPreview, skinBadge, current, true);
   setPreviewState(skinPrevPreview, skinPrevPreview.querySelector(".skin-preview__badge"), prev, false);
@@ -699,6 +736,7 @@ function cycleSkin(direction) {
   const skin = state.skins[state.selectedSkin];
   if (state.unlockedLevels >= skin.unlockLevel) {
     skin.revealed = true;
+    state.equippedSkin = state.selectedSkin;
   }
   updateSkinUI();
   animateSkinSwipe(direction);
@@ -725,15 +763,12 @@ function loop(timestamp) {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (["arrowleft", "arrowright", " ", "a", "d", "escape"].includes(key)) {
+  if (["arrowleft", "arrowright", "arrowup", " ", "a", "d", "w", "escape"].includes(key)) {
     event.preventDefault();
   }
   if (key === "escape") {
     togglePause();
     return;
-  }
-  if (key === " ") {
-    jump();
   }
   state.keys.add(key);
   initAudio();
