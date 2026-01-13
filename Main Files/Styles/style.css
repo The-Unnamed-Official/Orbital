@@ -304,6 +304,12 @@ button.primary {
   font-size: 0.95rem;
 }
 
+.skin-status {
+  color: #9fd6ff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 @keyframes swipe-left {
   0% {
     transform: translateX(0);
