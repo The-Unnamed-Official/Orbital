@@ -23,7 +23,7 @@ const skinsStrip = document.querySelector(".skins__strip");
 const themeToggle = document.getElementById("theme-toggle");
 
 const WORLD_HEIGHT = 900;
-const LEVEL_COUNT = 10;
+const LEVEL_COUNT = 20;
 const BALL_RADIUS = 26;
 const GRAVITY = 2600;
 const MOVE_ACCEL = 2200;
@@ -122,7 +122,9 @@ const state = {
   gameWon: false,
   started: false,
   keys: new Set(),
+  mouseHeld: false,
   lastTime: 0,
+  checkpoint: null,
   player: {
     x: 120,
     y: 420,
@@ -211,10 +213,24 @@ function randomRange(min, max) {
   return min + Math.random() * (max - min);
 }
 
+const START_SPAWN = { x: 140, y: 440 };
+
 function generateLevel(index) {
-  const levelLength = 1600 + index * 700;
+  const levelNumber = index + 1;
+  let levelLength = 1600 + index * 700;
+  if (levelNumber >= 6) {
+    levelLength += 900;
+  }
+  if (levelNumber >= 10) {
+    levelLength += 1400;
+  }
+  if (levelNumber >= 15) {
+    levelLength += 2000;
+  }
   const platforms = [];
   const hazards = [];
+  const blocks = [];
+  const checkpoints = [];
 
   let x = 0;
   let y = 520;
@@ -255,6 +271,7 @@ function generateLevel(index) {
       const hazardX = x + width * 0.4;
       const hazardY = y - 16;
       hazards.push({
+        type: "spike",
         x: hazardX,
         y: hazardY,
         width: 46,
@@ -269,6 +286,7 @@ function generateLevel(index) {
       const hazardX = x + width * 0.7;
       const hazardY = y - 16;
       hazards.push({
+        type: "spike",
         x: hazardX,
         y: hazardY,
         width: 46,
@@ -279,7 +297,71 @@ function generateLevel(index) {
       });
     }
 
+    const blockChance = 0.22 + index * 0.02;
+    if (Math.random() < blockChance) {
+      const blockWidth = randomRange(26, 46);
+      const blockHeight = randomRange(80, 160 + index * 5);
+      const blockX = clamp(
+        x + width * randomRange(0.25, 0.75),
+        x + 18,
+        x + width - blockWidth - 18
+      );
+      blocks.push({
+        x: blockX,
+        y: y - blockHeight,
+        width: blockWidth,
+        height: blockHeight,
+      });
+    }
+
+    const barChance = 0.25 + index * 0.015;
+    if (Math.random() < barChance) {
+      const barWidth = randomRange(90, 150 + index * 4);
+      const barX = x + width + gap * 0.35;
+      if (barX + barWidth < levelLength - 300) {
+        const bar = {
+          type: "bar",
+          x: barX,
+          y: clamp(y - randomRange(140, 220), 200, 660),
+          width: barWidth,
+          height: 18,
+          moving: false,
+        };
+        if (index >= 8 && Math.random() < 0.45) {
+          bar.moving = true;
+          bar.baseX = bar.x;
+          bar.baseY = bar.y;
+          bar.axis = Math.random() > 0.5 ? "x" : "y";
+          bar.range = randomRange(40, 120);
+          bar.speed = randomRange(0.8, 1.5);
+          bar.phase = Math.random() * Math.PI * 2;
+        }
+        hazards.push(bar);
+      }
+    }
+
+    if (index >= 5 && Math.random() < 0.22) {
+      const orb = {
+        type: "orb",
+        x: x + width * randomRange(0.3, 0.7),
+        y: y - randomRange(90, 160),
+        radius: randomRange(18, 28),
+      };
+      hazards.push(orb);
+    }
+
     x += width + gap;
+  }
+
+  if (levelNumber >= 6) {
+    if (levelNumber >= 15) {
+      checkpoints.push(
+        { x: levelLength * 0.33, y: 360, width: 24, height: 140, activated: false },
+        { x: levelLength * 0.66, y: 360, width: 24, height: 140, activated: false }
+      );
+    } else {
+      checkpoints.push({ x: levelLength * 0.5, y: 360, width: 24, height: 140, activated: false });
+    }
   }
 
   const portal = {
@@ -292,8 +374,10 @@ function generateLevel(index) {
   return {
     length: levelLength,
     platforms,
+    blocks,
     hazards,
     portal,
+    checkpoints,
     index,
   };
 }
@@ -306,15 +390,14 @@ function initLevels() {
 function setLevel(index) {
   state.levelIndex = index;
   state.background = state.backgroundTheme === "night" ? backgrounds[1] : backgrounds[0];
-  state.player.x = 140;
-  state.player.y = 440;
-  state.player.vx = 0;
-  state.player.vy = 0;
-  state.player.angle = 0;
-  state.player.textureState = "normal";
-  state.player.dizzyTimer = 0;
-  state.player.wasShook = false;
-  state.player.onPlatform = null;
+  state.checkpoint = null;
+  const level = state.levels[index];
+  if (level?.checkpoints) {
+    level.checkpoints.forEach((checkpoint) => {
+      checkpoint.activated = false;
+    });
+  }
+  resetPlayer(START_SPAWN);
   updateLevelIndicator();
   updateSkinUnlocks();
 }
@@ -352,7 +435,7 @@ function handleInput(dt) {
     state.player.coyoteTime -= dt;
   }
 
-  const jumpHeld = state.keys.has(" ") || state.keys.has("arrowup") || state.keys.has("w");
+  const jumpHeld = state.keys.has(" ") || state.keys.has("arrowup") || state.keys.has("w") || state.mouseHeld;
   if (jumpHeld) {
     jump();
   }
@@ -384,7 +467,23 @@ function updatePlatforms(level, time) {
     }
   });
 
+}
+
+function updateHazards(level, time) {
   level.hazards.forEach((hazard) => {
+    hazard.deltaX = 0;
+    hazard.deltaY = 0;
+    if (hazard.moving) {
+      const prevX = hazard.x;
+      const prevY = hazard.y;
+      if (hazard.axis === "x") {
+        hazard.x = hazard.baseX + Math.sin(time * hazard.speed + hazard.phase) * hazard.range;
+      } else {
+        hazard.y = hazard.baseY + Math.sin(time * hazard.speed + hazard.phase) * hazard.range;
+      }
+      hazard.deltaX = hazard.x - prevX;
+      hazard.deltaY = hazard.y - prevY;
+    }
     if (hazard.platform) {
       hazard.x = hazard.platform.x + hazard.offsetX;
       hazard.y = hazard.platform.y + hazard.offsetY;
@@ -420,6 +519,39 @@ function circleIntersectsTriangle(cx, cy, radius, ax, ay, bx, by, cx2, cy2) {
   return Math.min(d1, d2, d3) <= radius;
 }
 
+function circleIntersectsRect(cx, cy, radius, rx, ry, rw, rh) {
+  const closestX = clamp(cx, rx, rx + rw);
+  const closestY = clamp(cy, ry, ry + rh);
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+function circleIntersectsCircle(cx, cy, radius, ox, oy, otherRadius) {
+  const dx = cx - ox;
+  const dy = cy - oy;
+  const combined = radius + otherRadius;
+  return dx * dx + dy * dy <= combined * combined;
+}
+
+function resetPlayer(spawn) {
+  state.player.x = spawn.x;
+  state.player.y = spawn.y;
+  state.player.vx = 0;
+  state.player.vy = 0;
+  state.player.angle = 0;
+  state.player.textureState = "normal";
+  state.player.dizzyTimer = 0;
+  state.player.wasShook = false;
+  state.player.onPlatform = null;
+  state.player.coyoteTime = 0;
+}
+
+function respawnPlayer() {
+  const spawn = state.checkpoint ?? START_SPAWN;
+  resetPlayer(spawn);
+}
+
 function resolveWorldBounds(level) {
   if (state.player.x - BALL_RADIUS < 0) {
     state.player.x = BALL_RADIUS;
@@ -439,7 +571,8 @@ function resolveCollisions(level, prevX, prevY) {
   state.player.onGround = false;
   state.player.onPlatform = null;
 
-  for (const platform of level.platforms) {
+  const solids = level.blocks ? level.platforms.concat(level.blocks) : level.platforms;
+  for (const platform of solids) {
     const closestX = clamp(state.player.x, platform.x, platform.x + platform.width);
     const closestY = clamp(state.player.y, platform.y, platform.y + platform.height);
     const dx = state.player.x - closestX;
@@ -474,16 +607,52 @@ function resolveCollisions(level, prevX, prevY) {
 
 function checkHazards(level) {
   for (const hazard of level.hazards) {
-    const ax = hazard.x;
-    const ay = hazard.y + hazard.height;
-    const bx = hazard.x + hazard.width / 2;
-    const by = hazard.y;
-    const cx = hazard.x + hazard.width;
-    const cy = hazard.y + hazard.height;
-    if (circleIntersectsTriangle(state.player.x, state.player.y, BALL_RADIUS, ax, ay, bx, by, cx, cy)) {
+    if (hazard.type === "spike") {
+      const ax = hazard.x;
+      const ay = hazard.y + hazard.height;
+      const bx = hazard.x + hazard.width / 2;
+      const by = hazard.y;
+      const cx = hazard.x + hazard.width;
+      const cy = hazard.y + hazard.height;
+      if (!circleIntersectsTriangle(state.player.x, state.player.y, BALL_RADIUS, ax, ay, bx, by, cx, cy)) {
+        continue;
+      }
+    } else if (hazard.type === "bar") {
+      if (!circleIntersectsRect(state.player.x, state.player.y, BALL_RADIUS, hazard.x, hazard.y, hazard.width, hazard.height)) {
+        continue;
+      }
+    } else if (hazard.type === "orb") {
+      if (!circleIntersectsCircle(state.player.x, state.player.y, BALL_RADIUS, hazard.x, hazard.y, hazard.radius)) {
+        continue;
+      }
+    } else {
+      continue;
+    }
       playSfx("fail");
-      setLevel(state.levelIndex);
+      respawnPlayer();
       return;
+  }
+}
+
+function checkCheckpoints(level) {
+  if (!level.checkpoints || level.checkpoints.length === 0) return;
+  for (const checkpoint of level.checkpoints) {
+    if (checkpoint.activated) continue;
+    const reached = circleIntersectsRect(
+      state.player.x,
+      state.player.y,
+      BALL_RADIUS,
+      checkpoint.x,
+      checkpoint.y,
+      checkpoint.width,
+      checkpoint.height
+    );
+    if (reached) {
+      checkpoint.activated = true;
+      state.checkpoint = {
+        x: checkpoint.x + checkpoint.width / 2,
+        y: checkpoint.y - BALL_RADIUS - 8,
+      };
     }
   }
 }
@@ -535,6 +704,7 @@ function updateTextureState(dt) {
 function update(dt, time) {
   const level = state.levels[state.levelIndex];
   updatePlatforms(level, time);
+  updateHazards(level, time);
 
   if (state.player.onPlatform) {
     state.player.x += state.player.onPlatform.deltaX;
@@ -553,11 +723,12 @@ function update(dt, time) {
   resolveCollisions(level, prevX, prevY);
   resolveWorldBounds(level);
   checkHazards(level);
+  checkCheckpoints(level);
   checkPortal(level);
 
   if (state.player.y > WORLD_HEIGHT + 200) {
     playSfx("fail");
-    setLevel(state.levelIndex);
+    respawnPlayer();
   }
 
   const rotationSpeed = state.player.vx / BALL_RADIUS;
@@ -596,14 +767,34 @@ function drawLevel(level) {
     ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
   });
 
-  ctx.fillStyle = "#d44a4a";
+  ctx.fillStyle = "#7082a6";
+  level.blocks.forEach((block) => {
+    ctx.fillRect(block.x, block.y, block.width, block.height);
+  });
+
   level.hazards.forEach((hazard) => {
-    ctx.beginPath();
-    ctx.moveTo(hazard.x, hazard.y + hazard.height);
-    ctx.lineTo(hazard.x + hazard.width / 2, hazard.y);
-    ctx.lineTo(hazard.x + hazard.width, hazard.y + hazard.height);
-    ctx.closePath();
-    ctx.fill();
+    if (hazard.type === "spike") {
+      ctx.fillStyle = "#d44a4a";
+      ctx.beginPath();
+      ctx.moveTo(hazard.x, hazard.y + hazard.height);
+      ctx.lineTo(hazard.x + hazard.width / 2, hazard.y);
+      ctx.lineTo(hazard.x + hazard.width, hazard.y + hazard.height);
+      ctx.closePath();
+      ctx.fill();
+    } else if (hazard.type === "bar") {
+      ctx.fillStyle = "#e1784a";
+      ctx.fillRect(hazard.x, hazard.y, hazard.width, hazard.height);
+    } else if (hazard.type === "orb") {
+      ctx.fillStyle = "#f08bd8";
+      ctx.beginPath();
+      ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  level.checkpoints.forEach((checkpoint) => {
+    ctx.fillStyle = checkpoint.activated ? "rgba(120, 255, 200, 0.9)" : "rgba(120, 220, 255, 0.65)";
+    ctx.fillRect(checkpoint.x, checkpoint.y, checkpoint.width, checkpoint.height);
   });
 
   const portal = level.portal;
@@ -656,7 +847,7 @@ function showMenu(mode) {
     showOverlay("Main Menu", "Press Start to roll into level 1.");
     resumeButton.textContent = "Start";
   } else if (mode === "win") {
-    showOverlay("You Win!", "Boll zipped through all 10 procedurally generated levels.");
+    showOverlay("You Win!", "Boll zipped through all 20 procedurally generated levels.");
     resumeButton.textContent = "Play Again";
   } else {
     showOverlay("Paused", "Press Esc or Resume to continue.");
@@ -777,6 +968,28 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   const key = event.key.toLowerCase();
   state.keys.delete(key);
+});
+
+window.addEventListener("mousedown", (event) => {
+  if (event.button !== 0) return;
+  state.mouseHeld = true;
+  initAudio();
+  if (state.paused) {
+    if (!state.started) {
+      hideOverlay();
+    } else {
+      return;
+    }
+  }
+  jump();
+});
+
+window.addEventListener("mouseup", () => {
+  state.mouseHeld = false;
+});
+
+window.addEventListener("blur", () => {
+  state.mouseHeld = false;
 });
 
 resumeButton.addEventListener("click", () => {

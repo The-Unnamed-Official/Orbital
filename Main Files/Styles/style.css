@@ -54,6 +54,20 @@ canvas {
   color: var(--muted);
 }
 
+.version {
+  position: absolute;
+  left: 24px;
+  bottom: 18px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(9, 12, 22, 0.6);
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 .overlay {
   position: absolute;
   inset: 0;
