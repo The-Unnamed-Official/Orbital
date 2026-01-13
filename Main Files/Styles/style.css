@@ -133,6 +133,65 @@ button.primary {
   width: 100%;
 }
 
+.slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 12px rgba(88, 197, 255, 0.6);
+  border: 2px solid rgba(6, 10, 18, 0.6);
+}
+
+.slider input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 12px rgba(88, 197, 255, 0.6);
+  border: 2px solid rgba(6, 10, 18, 0.6);
+}
+
+.slider input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.toggle-button {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.toggle-button[aria-pressed="true"] {
+  background: linear-gradient(120deg, #1c3350, #0c1427);
+  color: #bde7ff;
+}
+
 .skins {
   display: flex;
   align-items: center;
@@ -144,6 +203,14 @@ button.primary {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.skins__strip.swipe-left {
+  animation: swipe-left 0.35s ease;
+}
+
+.skins__strip.swipe-right {
+  animation: swipe-right 0.35s ease;
 }
 
 .skin-preview {
@@ -198,7 +265,6 @@ button.primary {
   opacity: 1;
 }
 
-.skin-preview.focused.locked::after,
 .skin-preview.focused.unlocked::after {
   opacity: 0;
 }
@@ -224,7 +290,8 @@ button.primary {
   opacity: 1;
 }
 
-.skin-preview.focused .skin-preview__badge {
+.skin-preview.focused.unlocked .skin-preview__badge,
+.skin-preview.focused.revealed .skin-preview__badge {
   opacity: 0;
 }
 
@@ -235,6 +302,30 @@ button.primary {
 .skin-desc {
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+@keyframes swipe-left {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-16px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes swipe-right {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(16px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 @media (max-width: 720px) {
