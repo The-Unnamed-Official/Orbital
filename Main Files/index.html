@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boll Platformer</title>
+  <link rel="stylesheet" href="Styles/style.css" />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-ryH6dV2P0USsfx8bVsgcuyo6edSxnl2xe50Tzw9uQWGWpZ6YG1ChcxrFAxo0xO+ogzAm8h1Hn0pVITQy6l0h2w=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+</head>
+<body>
+  <div class="game-shell">
+    <canvas id="game" width="1280" height="720" aria-label="Boll platformer"></canvas>
+
+    <div class="hud">
+      <div class="hud__left">
+        <h1>Boll Platformer</h1>
+        <p>Move: A/D or ←/→ · Jump: Space · Pause: Esc</p>
+      </div>
+      <div class="hud__right">
+        <p id="level-indicator">Level 1 / 10</p>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <div class="overlay__card">
+        <h2 id="overlay-title">Paused</h2>
+        <p id="overlay-message">Press Esc to resume.</p>
+        <div class="overlay__actions">
+          <button id="resume-button" class="primary">Resume</button>
+          <button id="restart-button">Restart Level</button>
+        </div>
+
+        <div class="settings">
+          <h3>Audio Settings</h3>
+          <div class="slider">
+            <label for="music-volume">Music</label>
+            <input type="range" id="music-volume" min="0" max="1" step="0.01" value="0.6" />
+          </div>
+          <div class="slider">
+            <label for="sfx-volume">SFX</label>
+            <input type="range" id="sfx-volume" min="0" max="1" step="0.01" value="0.7" />
+          </div>
+
+          <h3>Skins</h3>
+          <div class="skins">
+            <button id="skin-prev" aria-label="Previous skin">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="skins__strip">
+              <div class="skin-preview skin-preview--small" id="skin-prev-preview">
+                <div class="skin-preview__badge"></div>
+                <div class="skin-preview__circle"></div>
+              </div>
+              <div class="skin-preview" id="skin-preview">
+                <div class="skin-preview__badge" id="skin-badge"></div>
+                <div class="skin-preview__circle"></div>
+              </div>
+              <div class="skin-preview skin-preview--small" id="skin-next-preview">
+                <div class="skin-preview__badge"></div>
+                <div class="skin-preview__circle"></div>
+              </div>
+            </div>
+            <button id="skin-next" aria-label="Next skin">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <p class="skin-name" id="skin-name">Classic Boll</p>
+          <p class="skin-desc" id="skin-desc">Reach level 1 to unlock.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="Scripts/main.js" defer></script>
+</body>
+</html>
