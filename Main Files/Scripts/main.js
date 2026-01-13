@@ -74,6 +74,36 @@ const skinOptions = [
       dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Pink_Boll_Dizzy.png`),
     },
   },
+  {
+    name: "Grass Boll",
+    description: "Reach level 10 to unlock.",
+    unlockLevel: 7,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Green_Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Green_Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Green_Boll_Dizzy.png`),
+    },
+  },
+  {
+    name: "Fire Boll",
+    description: "Reach level 15 to unlock.",
+    unlockLevel: 7,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Orange_Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Orange_Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Orange_Boll_Dizzy.png`),
+    },
+  },
+  {
+    name: "Blood Boll",
+    description: "Reach level 20 to unlock.",
+    unlockLevel: 7,
+    textures: {
+      normal: loadTexture(`${ASSET_ROOT}/Textures/Boll/Red_Boll.png`),
+      shook: loadTexture(`${ASSET_ROOT}/Textures/Boll/Red_Boll_Shook.png`),
+      dizzy: loadTexture(`${ASSET_ROOT}/Textures/Boll/Red_Boll_Dizzy.png`),
+    },
+  },
 ];
 
 const backgroundSources = [
@@ -117,7 +147,7 @@ const state = {
   levelIndex: 0,
   levels: [],
   background: backgrounds[0],
-  backgroundTheme: "day",
+  backgroundTheme: "night",
   paused: false,
   gameWon: false,
   started: false,
